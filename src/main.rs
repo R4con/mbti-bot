@@ -1,41 +1,73 @@
 extern crate reqwest;
+extern crate selectors;
 
-fn main() -> Result<(), Box<dyn std::error::Error>>{
-    let mut output_list: Vec<String> = Vec::new();
+use scraper::{Html, Selector};
+use selectors::attr::CaseSensitivity;
+use std::borrow::Cow;
 
-    let response = reqwest::blocking::get("https://www.tumblr.com/search/%23intj")?;
-        println!("Status: {}", response.status());
-        let body = response.text()?;
-        let body_list: Vec<&str> = body.split("<img").collect();
-        println!("{}", body);
+fn get_document(url: &String) -> Result<scraper::html::Html, Box<dyn std::error::Error>> {
+    //pull html from url
+    let response = reqwest::blocking::get(url)?;
+    let html_string = response.text()?;
 
-        //filter for all tags
-        for item in body_list {
-            let split_str: Vec<&str> = item.split(">").collect();
-            let mut full_tag = split_str[0].trim().to_string();
-            
+    //parse html
+    let document = Html::parse_document(&html_string);
 
-            match full_tag.find("src=\"") {
-                Some(index) => {
-                    let mut right_tag = full_tag.split_off(index+5);
+    //check if a token is required
+    if document.errors.contains(&Cow::from("Unexpected token")) {
+        println!("youre fucked!");
+        //add the token to the html header, and load the website again
+    }
 
-                    match right_tag.find("\"") {
-                        Some(index) => {
-                            let left_tag = right_tag.split_off(index);
-                            output_list.push(right_tag);
-                        },
-                        None => {}
-                    }
-                },
-                None => {}
-            }
-        }
-
-        let mut count = 0;
-        for item in output_list {
-            println!("{}: '{}'", count, item);
-            count += 1;
-        }
-
-    Ok(())
+    Ok(document)
 }
+
+fn main() {
+    let mut imgur_post_link_list: Vec<String> = Vec::new();
+    let mut meme_url_collection: Vec<String> = Vec::new();
+
+    let document = get_document(&"https://imgur.com/search?q=intj".to_string()).unwrap();
+
+    //filter domcument and find urls, of the posts
+    let selector = Selector::parse("a").unwrap();
+    
+    for element in document.select(&selector) {
+        if element.value().has_class("image-list-link", CaseSensitivity::CaseSensitive) {
+            let link = element.value().attr("href").unwrap();
+            imgur_post_link_list.push(link.to_string());
+        }
+    }
+
+    //go threw every post, and find the original image link
+    // ! DOES NOT WORK - Privacy consent needs to be accepted 
+    // for url_piece in imgur_post_link_list {
+    //     let url = String::from("https://imgur.com")+ &url_piece.to_string();
+    //     let document = get_document(&url).unwrap();
+
+    //     let selector = Selector::parse("img").unwrap();
+
+    //     println!("{:#?}", document);
+    //     for element in document.select(&selector) {
+    //         print!(".");
+    //         if element.value().has_class("image-placeholder", CaseSensitivity::CaseSensitive) {
+    //             println!("found something! {:#?}", element.value());
+    //             let meme_url = scraper::element_ref::ElementRef::wrap(
+    //                     element
+    //                     .next_sibling()
+    //                     .unwrap()
+    //                 )
+    //                 .unwrap()
+    //                 .value()
+    //                 .attr("src")
+    //                 .unwrap();
+    //             meme_url_collection.push(meme_url.to_string());
+    //             println!("{}", meme_url);
+    //             break;
+    //         }
+    //     }
+    // }
+
+    for post_link in imgur_post_link_list {
+        println!("https://imgur.com{}", post_link);
+    }
+}   
